@@ -295,24 +295,40 @@ async def ws_yolo(websocket: WebSocket):
         await websocket.close()
         return
     session_id = str(uuid.uuid4())
-    label_counts = defaultdict(int)
-    total_frames = 0
+    expression_data = []
+    
     try:
         while True:
             text_data = await websocket.receive_text()
             msg = json.loads(text_data)
+            
             if msg["type"] == "frame":
+                print("Received frame in session:", session_id)
                 header, encoded = msg["image"].split(",", 1)
                 img = Image.open(io.BytesIO(base64.b64decode(encoded))).convert("RGB")
                 r = yolo_model.predict(img, conf=0.5, imgsz=640)[0]
+                
                 for box in r.boxes:
-                    label_counts[yolo_model.names[int(box.cls[0])]] += 1
-                total_frames += 1
+                    label = yolo_model.names[int(box.cls[0])]
+                    timestamp = msg.get("timestamp") 
+
+                    expression_data.append({
+                        "timestamp": timestamp,
+                        "expression": label 
+                    })
+                
             elif msg["type"] == "finish":
-                await websocket.send_text(json.dumps({"type": "summary", "data": {"session_id": session_id, "total_frames": total_frames, "labels": [{"label": k, "count": v} for k, v in label_counts.items()]}}))
+                print("Finishing session:", session_id)
+                summary_data = {
+                    "type": "summary",
+                    "data": expression_data
+                }
+                await websocket.send_text(json.dumps(summary_data))
                 await websocket.close()
                 break
-    except:
+                
+    except Exception as e:
+        print(f"Error: {e}")
         pass
 
 if __name__ == "__main__":
