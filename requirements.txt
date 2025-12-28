@@ -4,3 +4,5 @@ pydantic
 torch
 transformers
 python-dotenv
+PIL
+ultralytics
